@@ -434,6 +434,7 @@ local specialModList = {
 	["projectile critical strike chance increased by arrow pierce chance"] = { mod("CritChance", "INC", 100, nil, ModFlag.Projectile) },
 	["always poison on hit while using a flask"] = { mod("PoisonChance", "BASE", 100, { type = "Condition", var = "UsingFlask" }) },
 	["armour received from body armour is doubled"] = { flag("Unbreakable") },
+    ["critical strikes ignore enemy monster elemental resistances"] = { flag("IJ") },
 	["gain (%d+)%% of maximum mana as extra maximum energy shield"] = function(num) return { mod("ManaGainAsEnergyShield", "BASE", num) } end,
 	["you have fortify"] = { mod("Misc", "LIST", { type = "Condition", var = "Fortify"}) },
 	["(%d+)%% increased damage of each damage type for which you have a matching golem"] = function(num) return { mod("PhysicalDamage", "INC", num, { type = "Condition", var = "HavePhysicalGolem"}), mod("LightningDamage", "INC", num, { type = "Condition", var = "HaveLightningGolem"}), mod("ColdDamage", "INC", num, { type = "Condition", var = "HaveColdGolem"}), mod("FireDamage", "INC", num, { type = "Condition", var = "HaveFireGolem"}), mod("ChaosDamage", "INC", num, { type = "Condition", var = "HaveChaosGolem"}) } end,
