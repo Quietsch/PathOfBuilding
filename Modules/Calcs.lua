@@ -1872,207 +1872,128 @@ local function performCalcs(env)
 	-- Calculate hit damage for each damage type
     local totalMin, totalMax = 0, 0
     local totalIJMin, totalIJMax = 0, 0
-    if modDB:Sum("FLAG", nil, "IJ") then
-        do
-            local hitSource = (env.mode_skillType == "ATTACK") and env.weaponData1 or env.mainSkill.skillData
-            for _, damageType in ipairs(dmgTypeList) do
-                local min, max
-                local IJmin, IJmax = 0, 0
-                if skillFlags.hit and canDeal[damageType] then
-                    if breakdown then
-                        breakdown[damageType] = {
-                            damageComponents = { }
-                        }
+    do
+        local hitSource = (env.mode_skillType == "ATTACK") and env.weaponData1 or env.mainSkill.skillData
+        for _, damageType in ipairs(dmgTypeList) do
+            local min, max
+            local IJmin, IJmax = 0, 0
+            if skillFlags.hit and canDeal[damageType] then
+                if breakdown then
+                    breakdown[damageType] = {
+                        damageComponents = { }
+                    }
+                end
+                min, max = calcHitDamage(env, hitSource, damageType)
+                local convMult = env.conversionTable[damageType].mult
+                if breakdown then
+                    t_insert(breakdown[damageType], "Hit damage:")
+                    t_insert(breakdown[damageType], s_format("%d to %d ^8(total damage)", min, max))
+                    if convMult ~= 1 then
+                        t_insert(breakdown[damageType], s_format("x %g ^8(%g%% converted to other damage types)", convMult, (1-convMult)*100))
                     end
-                    min, max = calcHitDamage(env, hitSource, damageType)
-                    local convMult = env.conversionTable[damageType].mult
-                    if breakdown then
-                        t_insert(breakdown[damageType], "Hit damage:")
-                        t_insert(breakdown[damageType], s_format("%d to %d ^8(total damage)", min, max))
-                        if convMult ~= 1 then
-                            t_insert(breakdown[damageType], s_format("x %g ^8(%g%% converted to other damage types)", convMult, (1-convMult)*100))
-                        end
-                    end
-                    min = min * convMult
-                    max = max * convMult
-                    if (min ~= 0 or max ~= 0) and env.mode_effective then
-                        -- Apply enemy resistances and damage taken modifiers
-                        local preMult
-                        local resist = 0
-                        local pen = 0
-                        local taken = enemyDB:Sum("INC", nil, "DamageTaken", damageType.."DamageTaken")
-                        if isElemental[damageType] then
-                            resist = output["Enemy"..damageType.."Resist"]
-                            pen = modDB:Sum("BASE", skillCfg, damageType.."Penetration", "ElementalPenetration")
-                            -- flat pen on noncrit
+                end
+                min = min * convMult
+                max = max * convMult
+                if (min ~= 0 or max ~= 0) and env.mode_effective then
+                    -- Apply enemy resistances and damage taken modifiers
+                    local preMult
+                    local resist = 0
+                    local pen = 0
+                    local taken = enemyDB:Sum("INC", nil, "DamageTaken", damageType.."DamageTaken")
+                    if isElemental[damageType] then
+                        resist = output["Enemy"..damageType.."Resist"]
+                        pen = modDB:Sum("BASE", skillCfg, damageType.."Penetration", "ElementalPenetration")
+                        -- flat pen on noncrit
+                        if modDB:Sum("FLAG", nil, "IJ") then
                             pen = pen + 10
-                            taken = taken + enemyDB:Sum("INC", nil, "ElementalDamageTaken")
-                        elseif damageType == "Chaos" then
-                            resist = output.EnemyChaosResist
-                        else
-                            resist = enemyDB:Sum("INC", nil, "PhysicalDamageReduction")
                         end
-                        if skillFlags.projectile then
-                            taken = taken + enemyDB:Sum("INC", nil, "ProjectileDamageTaken")
-                        end
-                        local effMult = (1 - (resist - pen) / 100) * (1 + taken / 100)
-                        local effIJMult = (1 + taken / 100)
-                        IJmin = min * effIJMult
-                        IJmax = max * effIJMult
-                        min = min * effMult
-                        max = max * effMult
-                        if env.mode == "CALCS" then
-                            output[damageType.."EffMult"] = effMult
-                        end
-                        if breakdown and effMult ~= 1 then
-                            t_insert(breakdown[damageType], s_format("x %.3f ^8(effective DPS modifier)", effMult))
-                            breakdown[damageType.."EffMult"] = effMultBreakdown(damageType, resist, pen, taken, effMult)
-                        end
+                        taken = taken + enemyDB:Sum("INC", nil, "ElementalDamageTaken")
+                    elseif damageType == "Chaos" then
+                        resist = output.EnemyChaosResist
+                    else
+                        resist = enemyDB:Sum("INC", nil, "PhysicalDamageReduction")
                     end
-                    if breakdown then	
-                        t_insert(breakdown[damageType], s_format("= %d to %d", min, max))
+                    if skillFlags.projectile then
+                        taken = taken + enemyDB:Sum("INC", nil, "ProjectileDamageTaken")
                     end
-                else
-                    min, max = 0, 0
-                    if breakdown then
-                        breakdown[damageType] = {
-                            "You can't deal "..damageType.." damage"
-                        }
+                    local effMult = (1 - (resist - pen) / 100) * (1 + taken / 100)
+                    local effIJMult = (1 + taken / 100)
+                    IJmin = min * effIJMult
+                    IJmax = max * effIJMult
+                    min = min * effMult
+                    max = max * effMult
+                    if env.mode == "CALCS" then
+                        output[damageType.."EffMult"] = effMult
+                    end
+                    if breakdown and effMult ~= 1 then
+                        t_insert(breakdown[damageType], s_format("x %.3f ^8(effective DPS modifier)", effMult))
+                        breakdown[damageType.."EffMult"] = effMultBreakdown(damageType, resist, pen, taken, effMult)
                     end
                 end
-                if env.mode == "CALCS" then
-                    output[damageType.."Min"] = min
-                    output[damageType.."Max"] = max
+                if breakdown then	
+                    t_insert(breakdown[damageType], s_format("= %d to %d", min, max))
                 end
-                output[damageType.."Average"] = (min + max + IJmin + IJmax) / 4
-                totalMin = totalMin + min
-                totalMax = totalMax + max
-                totalIJMin = totalIJMin + IJmin
-                totalIJMax = totalIJMax + IJmax
+            else
+                min, max = 0, 0
+                if breakdown then
+                    breakdown[damageType] = {
+                        "You can't deal "..damageType.." damage"
+                    }
+                end
             end
+            if env.mode == "CALCS" then
+                output[damageType.."Min"] = min
+                output[damageType.."Max"] = max
+            end
+            if modDB:Sum("FLAG", nil, "IJ") then
+                output[damageType.."Average"] = (min + max + IJmin + IJmax) / 4
+            else 
+                output[damageType.."Average"] = (min + max) / 2
+            end
+            totalMin = totalMin + min
+            totalMax = totalMax + max
+            totalIJMin = totalIJMin + IJmin
+            totalIJMax = totalIJMax + IJmax
         end
+    end
+    if modDB:Sum("FLAG", nil, "IJ") then
         output.TotalMin = (totalMin + totalIJMin) / 2
         output.TotalMax = (totalMax + totalIJMax) / 2
-
-        -- Update enemy hit-by-damage-type conditions
-        if output.FireAverage > 0 then
-            enemyDB.conditions.HitByFireDamage = true
-        end
-        if output.ColdAverage > 0 then
-            enemyDB.conditions.HitByColdDamage = true
-        end
-        if output.LightningAverage > 0 then
-            enemyDB.conditions.HitByLightningDamage = true
-        end
-
-        -- Calculate average damage and final DPS
-        output.AverageHit = (totalMin + totalMax) / 2 * (1 - output.CritChance / 100) + output.CritChance / 100 * output.CritMultiplier * (totalIJMin + totalIJMax) / 2
-        output.AverageDamage = output.AverageHit * output.HitChance / 100
-        output.TotalDPS = output.AverageDamage * output.Speed * (skillData.dpsMultiplier or 1)
-        
-        if breakdown and output.CritEffect ~= 1 then
-			breakdown.CritEffect = {
-				s_format("%g%% ^8(portion of damage from non-crits)", (totalMin + totalMax) / 2 * (1 - output.CritChance / 100) / output.AverageHit),
-				s_format("%g%% ^8(portion of damage from crits)", output.CritChance / 100 * output.CritMultiplier * (totalIJMin + totalIJMax) / 2 / output.AverageHit),
-			}
-		end
     else
-        do
-            local hitSource = (env.mode_skillType == "ATTACK") and env.weaponData1 or env.mainSkill.skillData
-            for _, damageType in ipairs(dmgTypeList) do
-                local min, max
-                if skillFlags.hit and canDeal[damageType] then
-                    if breakdown then
-                        breakdown[damageType] = {
-                            damageComponents = { }
-                        }
-                    end
-                    min, max = calcHitDamage(env, hitSource, damageType)
-                    local convMult = env.conversionTable[damageType].mult
-                    if breakdown then
-                        t_insert(breakdown[damageType], "Hit damage:")
-                        t_insert(breakdown[damageType], s_format("%d to %d ^8(total damage)", min, max))
-                        if convMult ~= 1 then
-                            t_insert(breakdown[damageType], s_format("x %g ^8(%g%% converted to other damage types)", convMult, (1-convMult)*100))
-                        end
-                    end
-                    min = min * convMult
-                    max = max * convMult
-                    if (min ~= 0 or max ~= 0) and env.mode_effective then
-                        -- Apply enemy resistances and damage taken modifiers
-                        local preMult
-                        local resist = 0
-                        local pen = 0
-                        local taken = enemyDB:Sum("INC", nil, "DamageTaken", damageType.."DamageTaken")
-                        if isElemental[damageType] then
-                            resist = output["Enemy"..damageType.."Resist"]
-                            pen = modDB:Sum("BASE", skillCfg, damageType.."Penetration", "ElementalPenetration")
-                            taken = taken + enemyDB:Sum("INC", nil, "ElementalDamageTaken")
-                        elseif damageType == "Chaos" then
-                            resist = output.EnemyChaosResist
-                        else
-                            resist = enemyDB:Sum("INC", nil, "PhysicalDamageReduction")
-                        end
-                        if skillFlags.projectile then
-                            taken = taken + enemyDB:Sum("INC", nil, "ProjectileDamageTaken")
-                        end
-                        local effMult = (1 - (resist - pen) / 100) * (1 + taken / 100)
-                        min = min * effMult
-                        max = max * effMult
-                        if env.mode == "CALCS" then
-                            output[damageType.."EffMult"] = effMult
-                        end
-                        if breakdown and effMult ~= 1 then
-                            t_insert(breakdown[damageType], s_format("x %.3f ^8(effective DPS modifier)", effMult))
-                            breakdown[damageType.."EffMult"] = effMultBreakdown(damageType, resist, pen, taken, effMult)
-                        end
-                    end
-                    if breakdown then	
-                        t_insert(breakdown[damageType], s_format("= %d to %d", min, max))
-                    end
-                else
-                    min, max = 0, 0
-                    if breakdown then
-                        breakdown[damageType] = {
-                            "You can't deal "..damageType.." damage"
-                        }
-                    end
-                end
-                if env.mode == "CALCS" then
-                    output[damageType.."Min"] = min
-                    output[damageType.."Max"] = max
-                end
-                output[damageType.."Average"] = (min + max) / 2
-                totalMin = totalMin + min
-                totalMax = totalMax + max
-            end
-        end
         output.TotalMin = totalMin
         output.TotalMax = totalMax
+    end
+    
+    -- Update enemy hit-by-damage-type conditions
+    if output.FireAverage > 0 then
+        enemyDB.conditions.HitByFireDamage = true
+    end
+    if output.ColdAverage > 0 then
+        enemyDB.conditions.HitByColdDamage = true
+    end
+    if output.LightningAverage > 0 then
+        enemyDB.conditions.HitByLightningDamage = true
+    end
 
-        if breakdown and output.CritEffect ~= 1 then
-			breakdown.CritEffect = {
-				s_format("(1 - %g) ^8(portion of damage from non-crits)", output.CritChance/100),
-				s_format("+ (%g x %g) ^8(portion of damage from crits)", output.CritChance/100, output.CritMultiplier),
-				s_format("= %.3f", output.CritEffect),
-			}
-		end
-        
-        -- Update enemy hit-by-damage-type conditions
-        if output.FireAverage > 0 then
-            enemyDB.conditions.HitByFireDamage = true
-        end
-        if output.ColdAverage > 0 then
-            enemyDB.conditions.HitByColdDamage = true
-        end
-        if output.LightningAverage > 0 then
-            enemyDB.conditions.HitByLightningDamage = true
-        end
-
-        -- Calculate average damage and final DPS
+    -- Calculate average damage and final DPS
+    if modDB:Sum("FLAG", nil, "IJ") then
+        output.AverageHit = (totalMin + totalMax) / 2 * (1 - output.CritChance / 100) + output.CritChance / 100 * output.CritMultiplier * (totalIJMin + totalIJMax) / 2
+    else 
         output.AverageHit = (totalMin + totalMax) / 2 * output.CritEffect
-        output.AverageDamage = output.AverageHit * output.HitChance / 100
-        output.TotalDPS = output.AverageDamage * output.Speed * (skillData.dpsMultiplier or 1)
+    end
+    output.AverageDamage = output.AverageHit * output.HitChance / 100
+    output.TotalDPS = output.AverageDamage * output.Speed * (skillData.dpsMultiplier or 1)
+    
+    if breakdown and output.CritEffect ~= 1 and modDB:Sum("FLAG", nil, "IJ") then
+        breakdown.CritEffect = {
+            s_format("%g%% ^8(portion of damage from non-crits)", (totalMin + totalMax) / 2 * (1 - output.CritChance / 100) / output.AverageHit),
+            s_format("%g%% ^8(portion of damage from crits)", output.CritChance / 100 * output.CritMultiplier * (totalIJMin + totalIJMax) / 2 / output.AverageHit),
+        }
+    elseif breakdown and output.CritEffect ~= 1 then
+        breakdown.CritEffect = {            
+            s_format("%g%% ^8(portion of damage from non-crits)", (1 - output.CritChance / 100) / output.CritEffect),
+            s_format("%g%% ^8(portion of damage from crits)", output.CritChance / 100 * output.CritMultiplier / output.CritEffect),        
+        }
     end
     
 	if env.mode == "CALCS" then
